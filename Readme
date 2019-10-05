@@ -1,0 +1,14 @@
+1. Copy siddhi-gpl-execution-pmml to <SIDDHI_DISTTRIBUTION_HOME>/bundles.
+2. Replace the TakiFarePrediction model's absoulute path in the Siddhi file.
+
+
+Towns
+-------
+Arbat
+Basmanny
+Meschansky
+Presnensky
+Tverskoy
+Zamoskvorechye
+Yakimanka
+

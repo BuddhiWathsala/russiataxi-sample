@@ -1,0 +1,29 @@
+@App:name("StartRideEnrichment")
+@App:description("Enrich start ride information with estimated time and cost.")
+
+@source(type='http', @map(type='json')) 
+define stream RideStartStream (taxiId string, userId string, pickupLocation string, dropoffLocation string);
+
+@sink(type='http-call', publisher.url='http://localhost:9080/rides/estimate', sink.id='time-estimate-call', @map(type="json")) 
+define stream TimeEstimateCallStream(taxiId string, userId string, pickupLocation string, dropoffLocation string, datetime string);
+
+@source(type='http-call-response', sink.id='time-estimate-call', 
+        @map(type="json", @attributes('trp:taxiId', 'trp:userId', 'trp:pickupLocation', 'trp:dropoffLocation', "$.rideEstimate")))
+@sink(type='log') 
+define stream TimeEstimateCallResponseStream(taxiId string, userId string, pickupLocation string, dropoffLocation string, timeEstimate string);
+
+@sink(type='log') 
+define stream RideStartInfoStream(taxiId string, userId string, pickupLocation string, dropoffLocation string, timeEstimate string, costEstimate double);
+
+from RideStartStream
+select taxiId, userId, pickupLocation, dropoffLocation, time:currentTime() as datetime
+insert into TimeEstimateCallStream;
+
+from TimeEstimateCallResponseStream
+select taxiId, userId, timeEstimate, str:lower(pickupLocation) as pickUp, str:lower(dropoffLocation) as dropOff, time:dayOfWeek(time:currentDate(), 'yyyy-MM-dd') as dayOfWeek, time:dateFormat(time:currentTime(), 'HH', 'HH:mm:ss')  as hourOfDay
+insert into TaxiFarePredictionStream;
+
+
+from TaxiFarePredictionStream#pmml:predict('/home/chiran/RStudio/exports/taxi_fare_predicting_model.pmml',pickUp, dropOff, dayOfWeek, hourOfDay)
+select taxiId, userId, pickUp as pickupLocation, dropOff as dropoffLocation, timeEstimate, cast(math:round(Predicted_cost*100)/100, 'double') as costEstimate
+insert into RideStartInfoStream;
